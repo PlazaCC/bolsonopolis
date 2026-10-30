@@ -285,7 +285,10 @@ function DiceTray({ state, reducedMotion }: { state: GameState; reducedMotion: b
   </group>
 }
 
-function MovingPawn({ player, occupantIndex, occupantCount, active, focused, reducedMotion, phase, cameraFocus, showLabel }: { player: Player; occupantIndex: number; occupantCount: number; active: boolean; focused: boolean; reducedMotion: boolean; phase: GameState['phase']; cameraFocus: { current: Vector3 }; showLabel: boolean }) {
+type PawnMotion = { position: Vector3; moving: boolean }
+type PawnMotionRef = { current: Map<string, PawnMotion> }
+
+function MovingPawn({ pawnMotion, player, occupantIndex, occupantCount, active, reducedMotion, phase, showLabel }: { pawnMotion: PawnMotionRef; player: Player; occupantIndex: number; occupantCount: number; active: boolean; reducedMotion: boolean; phase: GameState['phase']; showLabel: boolean }) {
   const base = cityPosition(player.position)
   const baseX = base[0]
   const baseZ = base[2]
@@ -312,7 +315,7 @@ function MovingPawn({ player, occupantIndex, occupantCount, active, focused, red
   }, [target, reducedMotion, player.position, offsetX, offsetZ])
   useFrame((_, delta) => {
     if (!group.current) return
-    if (focused) cameraFocus.current.copy(group.current.position).setY(.72)
+    pawnMotion.current.set(player.id, { position: group.current.position, moving })
     if (!moving) return
     const waypoint = waypoints.current[0] ?? target
     const dx = waypoint.x - group.current.position.x; const dz = waypoint.z - group.current.position.z
@@ -333,6 +336,10 @@ function MovingPawn({ player, occupantIndex, occupantCount, active, focused, red
       if (!waypoints.current.length) { speed.current = 0; setMoving(false) }
     }
   })
+  useEffect(() => {
+    const motions = pawnMotion.current
+    return () => { motions.delete(player.id) }
+  }, [pawnMotion, player.id])
   // Animated pawns keep their contact rings, rather than leaving a baked silhouette behind.
   useLayoutEffect(() => {
     group.current?.traverse(object => { object.castShadow = false })
@@ -345,7 +352,7 @@ function MovingPawn({ player, occupantIndex, occupantCount, active, focused, red
   </group>
 }
 
-function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion }: { recenterSignal: number; focusedPlayerId: string; cameraFocus: { current: Vector3 }; reducedMotion: boolean }) {
+function CameraRig({ pawnMotion, activePlayerId, recenterSignal, focusedPlayerId, cameraFocus, reducedMotion }: { pawnMotion: PawnMotionRef; activePlayerId: string; recenterSignal: number; focusedPlayerId: string; cameraFocus: { current: Vector3 }; reducedMotion: boolean }) {
   const controls = useRef<OrbitControlsImpl>(null)
   const { camera, size } = useThree()
   const perspective = camera as PerspectiveCamera
@@ -368,7 +375,7 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
       if (!pointers.has(event.pointerId)) return
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
       const next = angle()
-      if (next !== undefined && previousAngle !== undefined && controls.current) {
+      if (next !== undefined && previousAngle !== undefined && controls.current?.enabled) {
         const delta = Math.atan2(Math.sin(next - previousAngle), Math.cos(next - previousAngle))
         controls.current.setAzimuthalAngle(controls.current.getAzimuthalAngle() - delta)
       }
@@ -389,6 +396,8 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
     }
   }, [])
   const manualUntil = useRef(0)
+  const resetting = useRef(false)
+  const resetOffset = useRef(new Vector3())
   const initialised = useRef(false)
   const framedFocus = useRef(new Vector3())
   const isCompactViewport = size.height < 500
@@ -402,32 +411,37 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
       const focus = cameraFocus.current
       perspective.position.copy(focus).add(new Vector3(-10.5, 12, 10.5).setLength(defaultDistance))
       controls.current?.target.copy(focus); controls.current?.update(); initialised.current = true
-    } else if (manualUntil.current === 0) {
-      perspective.position.sub(controls.current?.target ?? cameraFocus.current).setLength(defaultDistance).add(controls.current?.target ?? cameraFocus.current)
     }
   }, [perspective, cameraFocus, defaultDistance])
   useEffect(() => {
     if (!controls.current || !initialised.current) return
     manualUntil.current = 0
-    const focus = cameraFocus.current.clone().setY(.72)
-    controls.current.target.copy(focus)
-    perspective.position.copy(focus).add(new Vector3(-10.5, 12, 10.5).setLength(defaultDistance))
-    controls.current.update()
+    resetOffset.current.set(-10.5, 12, 10.5).setLength(defaultDistance)
+    resetting.current = true
   }, [recenterSignal, focusedPlayerId, cameraFocus, defaultDistance, perspective])
   useFrame((_, delta) => {
-    if (!controls.current || performance.now() < manualUntil.current) return
-    const desired = framedFocus.current.copy(cameraFocus.current).setY(.72)
+    if (!controls.current) return
+    const activeMotion = pawnMotion.current.get(activePlayerId)
+    const focusedMotion = pawnMotion.current.get(focusedPlayerId)
+    const walking = activeMotion?.moving ? activeMotion : focusedMotion?.moving ? focusedMotion : [...pawnMotion.current.values()].find(motion => motion.moving)
+    controls.current.enabled = !walking
+    if (walking) manualUntil.current = 0
+    if (performance.now() < manualUntil.current) return
+    const desired = framedFocus.current.copy(walking?.position ?? focusedMotion?.position ?? cameraFocus.current).setY(.72)
     const previous = controls.current.target.clone()
     const smoothing = reducedMotion ? 1 : 1 - Math.exp(-delta * 3.8)
     controls.current.target.lerp(desired, smoothing)
     // Move camera and target by the same delta to preserve orbit and distance.
     camera.position.add(controls.current.target.clone().sub(previous))
     const offset = cameraOffset.current.copy(camera.position).sub(controls.current.target)
-    const distance = reducedMotion ? defaultDistance : MathUtils.damp(offset.length(), defaultDistance, 3.2, delta)
-    camera.position.copy(controls.current.target).add(offset.setLength(distance))
+    if (resetting.current) {
+      offset.lerp(resetOffset.current, reducedMotion ? 1 : 1 - Math.exp(-delta * 4))
+      if (offset.distanceToSquared(resetOffset.current) < .0001 && controls.current.target.distanceToSquared(desired) < .0001) resetting.current = false
+    }
+    camera.position.copy(controls.current.target).add(offset)
     controls.current.update()
   })
-  return <OrbitControls ref={controls} makeDefault touches={{ ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN }} screenSpacePanning={false} enablePan enableRotate enableZoom enableDamping dampingFactor={.075} rotateSpeed={.58} zoomSpeed={.82} panSpeed={.62} minDistance={Math.max(4, defaultDistance * .45)} maxDistance={120} minPolarAngle={.52} maxPolarAngle={1.5} target={[0, .35, 0]} onStart={() => { manualUntil.current = Number.POSITIVE_INFINITY }} onEnd={() => { manualUntil.current = Number.POSITIVE_INFINITY }} />
+  return <OrbitControls ref={controls} makeDefault touches={{ ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN }} screenSpacePanning={false} enablePan enableRotate enableZoom enableDamping dampingFactor={.075} rotateSpeed={.58} zoomSpeed={.82} panSpeed={.62} minDistance={Math.max(4, defaultDistance * .45)} maxDistance={120} minPolarAngle={.52} maxPolarAngle={1.5} target={[0, .35, 0]} onStart={() => { resetting.current = false; manualUntil.current = Number.POSITIVE_INFINITY }} onEnd={() => { manualUntil.current = Number.POSITIVE_INFINITY }} />
 }
 
 function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, quality, selected, onSelect }: { state: GameState; reducedMotion: boolean; recenterSignal: number; focusedPlayerId: string; quality: 'low' | 'high'; selected?: string; onSelect: (tileId?: string) => void }) {
@@ -435,10 +449,7 @@ function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, qua
   const focusedPlayer = state.players.find(player => player.id === focusedPlayerId) ?? active
   const initialFocus = cityPosition(focusedPlayer?.position ?? 0)
   const cameraFocus = useRef(new Vector3(initialFocus[0], .72, initialFocus[2]))
-  const focusedPosition = cityPosition(focusedPlayer?.position ?? 0)
-  const focusedX = focusedPosition[0]
-  const focusedZ = focusedPosition[2]
-  useEffect(() => { cameraFocus.current.set(focusedX, .72, focusedZ) }, [focusedX, focusedZ])
+  const pawnMotion = useRef(new Map<string, PawnMotion>())
   return <>
     <hemisphereLight intensity={1.55} color="#fff7df" groundColor="#526e66" />
     {/* Bake the fixed light once; camera movement reuses the same soft shadow map. */}
@@ -457,11 +468,11 @@ function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, qua
       <DiceTray state={state} reducedMotion={reducedMotion} />
       {state.players.map(player => {
         const occupants = state.players.filter(candidate => candidate.position === player.position && !candidate.bankrupt)
-        return <MovingPawn key={player.id} player={player} occupantIndex={Math.max(0, occupants.findIndex(candidate => candidate.id === player.id))} occupantCount={Math.max(1, occupants.length)} active={active?.id === player.id} focused={focusedPlayer?.id === player.id} cameraFocus={cameraFocus} reducedMotion={reducedMotion} phase={state.phase} showLabel={quality === 'high' || active?.id === player.id || focusedPlayer?.id === player.id} />
+        return <MovingPawn pawnMotion={pawnMotion} key={player.id} player={player} occupantIndex={Math.max(0, occupants.findIndex(candidate => candidate.id === player.id))} occupantCount={Math.max(1, occupants.length)} active={active?.id === player.id} reducedMotion={reducedMotion} phase={state.phase} showLabel={quality === 'high' || active?.id === player.id || focusedPlayer?.id === player.id} />
       })}
     </group>
     <ContactShadows position={[0, -.685, 0]} opacity={quality === 'high' ? .34 : .2} scale={30} blur={1.8} far={12} resolution={quality === 'high' ? 512 : 256} frames={1} />
-    <CameraRig recenterSignal={recenterSignal} focusedPlayerId={focusedPlayerId} cameraFocus={cameraFocus} reducedMotion={reducedMotion} />
+    <CameraRig pawnMotion={pawnMotion} activePlayerId={active?.id ?? focusedPlayerId} recenterSignal={recenterSignal} focusedPlayerId={focusedPlayerId} cameraFocus={cameraFocus} reducedMotion={reducedMotion} />
   </>
 }
 

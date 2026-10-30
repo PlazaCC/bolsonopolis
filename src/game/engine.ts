@@ -98,7 +98,7 @@ function finishIfNeeded(state: GameState) {
 }
 
 function advanceTurn(state: GameState) {
-  state.pendingEventId = undefined; state.auction = undefined; state.trade = undefined; state.debt = undefined; state.lastRoll = undefined; state.lastRollActionId = undefined
+  state.pendingEventId = undefined; state.pendingEventChoices = undefined; state.chosenEventIndex = undefined; state.auction = undefined; state.trade = undefined; state.debt = undefined; state.lastRoll = undefined; state.lastRollActionId = undefined
   let loops = 0
   do {
     state.turnIndex = (state.turnIndex + 1) % state.players.length
@@ -157,6 +157,8 @@ function applyEvent(state: GameState, player: Player) {
   if (card.jail) { player.position = JAIL_INDEX; player.jailTurns = 2 }
   log(state, `${player.nickname}: ${card.fictionalEffect}`, card.cash < 0 || card.jail ? 'bad' : 'good', { amount: Math.abs(card.cash), toId: card.cash > 0 ? player.id : undefined, fromId: card.cash < 0 ? player.id : undefined })
   state.pendingEventId = undefined
+  state.pendingEventChoices = undefined
+  state.chosenEventIndex = undefined
   state.phase = 'manage'
 }
 
@@ -169,9 +171,16 @@ function resolveTile(state: GameState, player: Player) {
     const rent = propertyRent(state, tile)
     if (charge(state, player, rent, `aluguel de ${tile.name}`, property.ownerId)) state.phase = 'manage'
   } else if (tile.type === 'event') {
-    const card = EVENTS[Math.floor(random(state) * EVENTS.length)]
-    state.pendingEventId = card.id; state.phase = 'event'
-    log(state, `${player.nickname} abriu “${card.title}”.`)
+    const deck = [...EVENTS]
+    state.pendingEventChoices = []
+    for (let index = 0; index < 3; index++) {
+      const pick = Math.floor(random(state) * deck.length)
+      state.pendingEventChoices.push(deck.splice(pick, 1)[0].id)
+    }
+    state.pendingEventId = undefined
+    state.chosenEventIndex = undefined
+    state.phase = 'event'
+    log(state, `${player.nickname} vai escolher uma carta de sorte ou revés.`)
   } else if (tile.type === 'tax') {
     let amount = tile.amount ?? 0
     if (player.characterId === 'jair' && !player.abilityUsed) { amount = Math.ceil(amount * .8); player.abilityUsed = true }
@@ -289,6 +298,13 @@ export function reduceGame(previous: GameState, intent: GameIntent): GameState {
       } else log(state, 'O leilão terminou sem proposta. O imóvel volta ao banco.')
       state.auction = undefined; state.phase = 'manage'
     }
+  } else if (intent.type === 'CHOOSE_EVENT' && state.phase === 'event') {
+    if (!actor || actor.id !== current.id) throw new Error('Só o jogador da vez escolhe a carta.')
+    if (state.pendingEventId) throw new Error('A carta já foi escolhida.')
+    if (!Number.isInteger(intent.index) || intent.index < 0 || intent.index > 2 || !state.pendingEventChoices?.[intent.index]) throw new Error('Carta inválida.')
+    state.chosenEventIndex = intent.index
+    state.pendingEventId = state.pendingEventChoices[intent.index]
+    log(state, `${actor.nickname} revelou a carta ${intent.index + 1}.`)
   } else if (intent.type === 'RESOLVE_EVENT' && state.phase === 'event') {
     if (!actor || actor.id !== current.id) throw new Error('Este acontecimento pertence a outro jogador.')
     applyEvent(state, actor)
@@ -384,7 +400,7 @@ export function getBotIntent(state: GameState, requestedBot?: Player): GameInten
     const tile = BOARD[player.position]
     return tile.type === 'property' && player.cash > tile.price + 250 ? { type: 'BUY_PROPERTY', actionId, playerId: player.id } : { type: 'DECLINE_PROPERTY', actionId, playerId: player.id }
   }
-  if (state.phase === 'event' && player.id === current.id) return { type: 'RESOLVE_EVENT', actionId, playerId: player.id }
+  if (state.phase === 'event' && player.id === current.id) return state.pendingEventId ? { type: 'RESOLVE_EVENT', actionId, playerId: player.id } : { type: 'CHOOSE_EVENT', actionId, playerId: player.id, index: 0 }
   if (state.phase === 'auction' && state.auction) {
     const tile = PROPERTIES.find(value => value.id === state.auction?.tileId)!
     const next = state.auction.highestBid + (state.auction.highestBid === 0 ? 50 : 40)

@@ -132,6 +132,8 @@ export interface GameState {
   properties: PropertyState[]
   auction?: AuctionState
   pendingEventId?: string
+  pendingEventChoices?: string[]
+  chosenEventIndex?: number
   trade?: TradeOffer
   debt?: DebtState
   lastRoll?: [number, number]
@@ -156,6 +158,7 @@ export type GameIntent =
   | ({ type: 'DECLINE_PROPERTY' } & PlayerAction)
   | ({ type: 'BID'; amount: number } & PlayerAction)
   | ({ type: 'PASS_AUCTION' } & PlayerAction)
+  | ({ type: 'CHOOSE_EVENT'; index: number } & PlayerAction)
   | ({ type: 'RESOLVE_EVENT' } & PlayerAction)
   | ({ type: 'END_TURN' } & PlayerAction)
   | ({ type: 'BUILD'; tileId: string } & PlayerAction)

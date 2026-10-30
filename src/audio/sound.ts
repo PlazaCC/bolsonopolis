@@ -1,10 +1,11 @@
 let context: AudioContext | undefined
 
-export function playSound(kind: 'click' | 'roll' | 'good' | 'bad', enabled = true) {
+export function playSound(kind: 'click' | 'roll' | 'good' | 'bad' | 'money-in' | 'money-out' | 'turn-mine' | 'turn-other' | 'luck' | 'setback' | 'card-pick', enabled = true) {
   if (!enabled) return
-  context ??= new AudioContext()
+  try { context ??= new AudioContext() } catch { return }
+  if (context.state === 'suspended') void context.resume().catch(() => {})
   const now = context.currentTime
-  const notes = kind === 'roll' ? [180, 240, 320, 420] : kind === 'good' ? [392, 523, 659] : kind === 'bad' ? [180, 145] : [300]
+  const notes = kind === 'turn-mine' ? [523, 659, 784, 1047] : kind === 'turn-other' ? [330, 392] : kind === 'luck' ? [659, 880, 1047, 1320] : kind === 'setback' ? [294, 247, 175] : kind === 'card-pick' ? [440, 660] : kind === 'money-in' ? [660, 880, 1320] : kind === 'money-out' ? [440, 330, 220] : kind === 'roll' ? [180, 240, 320, 420] : kind === 'good' ? [392, 523, 659] : kind === 'bad' ? [180, 145] : [300]
   notes.forEach((frequency, index) => {
     const oscillator = context!.createOscillator()
     const gain = context!.createGain()

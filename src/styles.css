@@ -394,3 +394,107 @@ button:disabled { cursor: not-allowed; opacity: .45; filter: grayscale(.3); }
   .game-hud .camera-tools { bottom: var(--hud-bottom); }
   .game-hud .camera-help { display: none; }
 }
+
+/* Money is an explicit game signal, distinct from total property wealth. */
+.cash-value { display: inline-flex; flex-direction: column; align-items: inherit; position: relative; font-variant-numeric: tabular-nums; }
+.cash-delta { display: block; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; animation: cash-arrival .35s ease-out both; }
+.cash-delta.gain { color: #a5edb1; }
+.cash-delta.loss { color: #ffc3b2; }
+.game-hud .resource-strip .personal-cash { grid-template-columns: 1fr; }
+.game-hud .hud-resources { height: auto; min-height: 58px; }
+.game-hud .personal-cash > b { font-size: 20px; }
+.game-hud .score-player > .player-money { display: block; font-size: 9px; line-height: 1.2; text-align: center; }
+.game-hud .player-money .cash-value { align-items: center; }
+.game-hud .player-money .cash-delta { font-size: 9px; }
+.game-hud .player-money > small { display: block; color: #c7ded5; font-size: 8px; margin-top: 3px; }
+.player-net-worth { display: none; }
+.game-hud .expanded .player-money { font-size: 13px; text-align: right; }
+.game-hud .expanded .player-money .cash-value { align-items: flex-end; }
+.game-hud .expanded .player-net-worth { display: block; color: #d7dfd1; font: 10px/1.2 'Barlow Condensed',sans-serif; margin-top: 4px; }
+.money-feedback { position: absolute; z-index: 18; top: 88px; left: 98px; display: grid; gap: 6px; width: 245px; max-height: 260px; overflow-y: auto; pointer-events: none; }
+.money-notice { display: flex; align-items: center; gap: 10px; border-radius: 10px; padding: 10px 12px; background: #17383a; color: #fff5db; box-shadow: 0 4px 14px #102b2c44; animation: cash-arrival .3s ease-out both; }
+.money-notice > svg { width: 25px; height: 25px; flex: 0 0 25px; }
+.money-notice.gain > svg, .money-notice.gain strong { color: #a5edb1; }
+.money-notice.loss > svg, .money-notice.loss strong { color: #ffc3b2; }
+.money-notice b { display: block; font-size: 13px; }
+.money-notice span { display: block; font-size: 16px; }
+.money-notice small { display: block; color: #d7dfd1; font-size: 11px; margin-top: 2px; }
+.event-outcome { display: grid; gap: 5px; padding: 14px; border-radius: 8px; text-align: left; margin-bottom: 12px; }
+.event-outcome.gain { background: #d7ecd9; color: #145337; }
+.event-outcome.loss { background: #f6ddd4; color: #7e281d; }
+.event-outcome.neutral { background: #e1e8e3; color: #17383a; }
+.event-outcome > b { font-size: 13px; letter-spacing: 1px; }
+.event-outcome > strong { font: 23px/1.15 'Archivo Black',sans-serif; }
+.event-outcome > small { font-size: 13px; }
+.event-breakdown { display: grid; gap: 4px; margin-bottom: 14px; padding: 0 2px; font-size: 14px; line-height: 1.3; }
+.game-hud .event-card > .roll-button { width: 100%; }
+@keyframes cash-arrival { from { opacity: .45; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 760px), (max-height: 500px) and (max-width: 960px) {
+  .game-hud .hud-resources { min-height: 48px; }
+  .game-hud .personal-cash > b { font-size: 18px; }
+  .game-hud .resource-strip > div { padding-top: 5px; padding-bottom: 5px; }
+  .game-hud .cash-delta { position: absolute; top: 2px; right: 0; transform: translateY(100%); border-radius: 5px; padding: 4px 6px; background: #17383a; z-index: 1; animation: none; }
+  .game-hud .hud-resources { overflow: visible; }
+  .game-hud .money-feedback { top: calc(var(--hud-top) + 186px); left: var(--hud-left); width: min(245px,calc(100% - 72px)); max-height: max(60px,calc(100dvh - var(--action-height,160px) - 270px)); }
+  .money-notice { padding: 7px 10px; }
+  .money-notice span { font-size: 14px; }
+  .game-hud .expanded .cash-delta { position: static; transform: none; padding: 0; }
+}
+@media (max-height: 500px) and (max-width: 960px) {
+  .game-hud .money-feedback { left: 8px; top: 70px; width: 220px; max-height: 80px; }
+}
+@media (min-width: 761px) and (min-height: 501px) {
+  .game-hud.phase-event .action-panel { left: 98px; right: auto; bottom: 38px; transform: none; width: 340px; max-height: min(72vh,680px); }
+  .game-hud.phase-event .event-card { padding: 14px; }
+  .game-hud.phase-event .event-card h2 { font-size: 20px; }
+  .game-hud.phase-event .event-card .satire { font-size: 15px; line-height: 1.3; }
+  .game-hud.phase-event .event-outcome > strong { font-size: 21px; }
+}
+
+.turn-announcement { position: absolute; z-index: 32; top: 88px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; max-width: min(430px,calc(100% - 32px)); padding: 16px 22px; border-radius: 12px; background: #17383a; color: #fff5db; box-shadow: 0 8px 28px #102b2c44; pointer-events: none; animation: turn-arrival .35s ease-out both; }
+.turn-announcement.my-turn { background: #f4bf31; color: #17383a; }
+.turn-announcement > svg { flex: 0 0 24px; }
+.turn-announcement small, .turn-announcement strong, .turn-announcement span { display: block; }
+.turn-announcement small { font-size: 10px; letter-spacing: 1px; }
+.turn-announcement strong { font: 20px/1.2 'Archivo Black',sans-serif; margin: 4px 0; overflow-wrap: anywhere; }
+.turn-announcement span { font-size: 14px; }
+.event-draw-overlay { position: absolute; inset: 0; z-index: 36; display: grid; place-items: center; background: #102b2cb8; padding: max(18px,env(safe-area-inset-top)) 16px max(18px,env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+.event-draw { width: min(650px,100%); color: #fff5db; text-align: center; }
+.draw-symbol { display: inline-grid; place-items: center; color: #f4bf31; width: 48px; height: 48px; }
+.draw-symbol svg { width: 36px; height: 36px; }
+.event-draw h2 { font: clamp(26px,4vw,38px)/1.1 'Archivo Black',sans-serif; margin: 8px 0; }
+.event-draw p { font-size: 18px; margin: 10px 0 24px; }
+.face-down-cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+.face-down-cards > button { min-width: 0; min-height: 220px; aspect-ratio: .7; border: 2px solid #d1b96c; border-radius: 14px; background: #17383a; color: #f4bf31; padding: 10px; display: flex; flex-direction: column; align-items: stretch; gap: 10px; box-shadow: 0 8px 20px #0004; transition: transform .18s ease-out, background .18s; }
+.card-back-border { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border: 1px solid #d1b96c88; border-radius: 8px; }
+.card-back-border svg { width: 22px; height: 22px; }
+.card-back-border b { font: 64px/1 'Archivo Black',sans-serif; }
+.card-back-border > span { font-size: 10px; letter-spacing: 1px; }
+.face-down-cards > button small { color: #fff5db; font-size: 12px; font-weight: 800; }
+.face-down-cards > button:hover:not(:disabled), .face-down-cards > button:focus-visible { transform: translateY(-8px); background: #28554e; outline: 3px solid #f4bf31; outline-offset: 4px; }
+.face-down-cards > button:disabled { opacity: .75; cursor: default; }
+.draw-hint { display: block; margin-top: 24px; font-size: 13px; color: #e2e7d8; }
+.event-card { animation: event-reveal .5s ease-out both; transform-origin: left center; }
+@keyframes turn-arrival { from { opacity: .3; margin-top: -10px; } to { opacity: 1; margin-top: 0; } }
+@keyframes event-reveal { from { opacity: .25; transform: perspective(700px) rotateY(-35deg); } to { opacity: 1; transform: perspective(700px) rotateY(0); } }
+@media (max-width: 760px), (max-height: 500px) and (max-width: 960px) {
+  .game-hud .turn-announcement { top: calc(var(--hud-top) + 186px); width: calc(100% - 32px); padding: 12px 14px; }
+  .turn-announcement strong { font-size: 18px; }
+  .face-down-cards { gap: 10px; }
+  .face-down-cards > button { min-height: 160px; padding: 6px; border-radius: 10px; }
+  .card-back-border { gap: 8px; }
+  .card-back-border b { font-size: 42px; }
+  .card-back-border > span { font-size: 8px; letter-spacing: .3px; }
+  .event-draw p { font-size: 16px; margin-bottom: 18px; }
+  .draw-hint { margin-top: 18px; }
+  .event-outcome > strong { font-size: 20px; }
+}
+@media (max-height: 500px) and (max-width: 960px) {
+  .event-draw { max-width: 480px; }
+  .draw-symbol { display: none; }
+  .event-draw h2 { font-size: 25px; }
+  .event-draw p { margin: 6px 0 12px; }
+  .face-down-cards > button { min-height: 130px; aspect-ratio: 1; }
+  .card-back-border svg { display: none; }
+  .draw-hint { margin-top: 10px; }
+}

@@ -62,6 +62,8 @@ export function isGameIntent(value: unknown): value is GameIntent {
     case 'PAY_BAIL':
     case 'REMATCH':
       return true
+    case 'CHOOSE_EVENT':
+      return isInteger(value.index, 0, 2)
     case 'SET_READY':
       return typeof value.ready === 'boolean'
     case 'SET_CONNECTED':
@@ -194,6 +196,8 @@ export function isGameStateSnapshot(value: unknown): value is GameState {
     || new Set(value.properties.map(property => (property as Record<string, unknown>).tileId)).size !== PROPERTIES.length
     || !isAuction(value.auction, playerIds)
     || (value.pendingEventId !== undefined && (typeof value.pendingEventId !== 'string' || !EVENT_IDS.has(value.pendingEventId)))
+    || (value.pendingEventChoices !== undefined && (!Array.isArray(value.pendingEventChoices) || value.pendingEventChoices.length !== 3 || new Set(value.pendingEventChoices).size !== 3 || !value.pendingEventChoices.every(id => typeof id === 'string' && EVENT_IDS.has(id))))
+    || (value.chosenEventIndex !== undefined && (!isInteger(value.chosenEventIndex, 0, 2) || !Array.isArray(value.pendingEventChoices) || value.pendingEventChoices[value.chosenEventIndex] !== value.pendingEventId))
     || !isTrade(value.trade, playerIds)
     || !isDebt(value.debt, playerIds)) return false
 
