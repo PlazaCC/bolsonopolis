@@ -5,8 +5,8 @@
 
   **A browser-based 3D property game about assets, influence, and family business.**
 
-  [![CI](https://github.com/luismtns/bolsonopolis/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/luismtns/bolsonopolis/actions/workflows/ci.yml)
-  [![Production deployment](https://img.shields.io/github/deployments/luismtns/bolsonopolis/Production?label=production&logo=vercel&logoColor=white)](https://github.com/luismtns/bolsonopolis/deployments/Production)
+  [![CI](https://github.com/PlazaCC/bolsonopolis/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PlazaCC/bolsonopolis/actions/workflows/ci.yml)
+  [![Production deployment](https://img.shields.io/github/deployments/PlazaCC/bolsonopolis/Production?label=production&logo=vercel&logoColor=white)](https://github.com/PlazaCC/bolsonopolis/deployments/Production)
   [![Node.js](https://img.shields.io/badge/Node.js-22.14.0-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
