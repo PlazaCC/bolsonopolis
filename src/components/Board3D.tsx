@@ -10,6 +10,15 @@ import { CENTER_ZONES, CITY_BOUNDS, CITY_PATH, CORNER_TILE_SIZE, SURFACE_LEVELS,
 import { PropertyInspector } from './PropertyInspector'
 
 const CORNERS = new Set([0, 10, 20, 30])
+const CAMERA_AZIMUTH = -Math.PI / 4
+const CAMERA_ROTATION_RANGE = MathUtils.degToRad(20)
+// A 60-degree elevation, preserving the original camera-to-target distance.
+const CAMERA_DISTANCE = Math.hypot(10.5, 12, 10.5)
+const CAMERA_OFFSET: [number, number, number] = [
+  Math.sin(CAMERA_AZIMUTH) * CAMERA_DISTANCE * .5,
+  Math.sin(MathUtils.degToRad(60)) * CAMERA_DISTANCE,
+  Math.cos(CAMERA_AZIMUTH) * CAMERA_DISTANCE * .5,
+]
 
 function Box({ position, size, color, roughness = .72, castShadow = true, rotation }: { position: [number, number, number]; size: [number, number, number]; color: string; roughness?: number; castShadow?: boolean; rotation?: [number, number, number] }) {
   return <mesh position={position} rotation={rotation} castShadow={castShadow} receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} roughness={roughness} /></mesh>
@@ -352,7 +361,7 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
   useEffect(() => {
     if (!initialised.current) {
       const focus = cameraFocus.current
-      ortho.position.copy(focus).add(new Vector3(-10.5, 12, 10.5)); ortho.zoom = defaultZoom; ortho.updateProjectionMatrix()
+      ortho.position.copy(focus).add(new Vector3(...CAMERA_OFFSET)); ortho.zoom = defaultZoom; ortho.updateProjectionMatrix()
       controls.current?.target.copy(focus); controls.current?.update(); initialised.current = true
     } else if (manualUntil.current === 0) {
       ortho.zoom = defaultZoom; ortho.updateProjectionMatrix()
@@ -363,7 +372,7 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
     manualUntil.current = 0
     const focus = cameraFocus.current.clone().setY(.72)
     controls.current.target.copy(focus)
-    ortho.position.copy(focus).add(new Vector3(-10.5, 12, 10.5))
+    ortho.position.copy(focus).add(new Vector3(...CAMERA_OFFSET))
     ortho.zoom = defaultZoom
     ortho.updateProjectionMatrix(); controls.current.update()
   }, [recenterSignal, focusedPlayerId, cameraFocus, defaultZoom, ortho])
@@ -378,7 +387,9 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
     ortho.zoom = reducedMotion ? defaultZoom : MathUtils.damp(ortho.zoom, defaultZoom, 3.2, delta)
     ortho.updateProjectionMatrix(); controls.current.update()
   })
-  return <OrbitControls ref={controls} makeDefault enablePan enableRotate enableZoom enableDamping dampingFactor={.075} rotateSpeed={.58} zoomSpeed={.82} panSpeed={.62} minZoom={fitZoom * .85} maxZoom={Math.max(92, defaultZoom * 1.55)} minPolarAngle={.52} maxPolarAngle={1.2} target={[0, .35, 0]} onStart={() => { manualUntil.current = Number.POSITIVE_INFINITY }} onEnd={() => { manualUntil.current = performance.now() + 6000 }} />
+  // Polar angles are measured from vertical: 20–40 degrees means 70–50 above the board.
+  // Disable mouse/touch panning while keeping automatic player tracking intact.
+  return <OrbitControls ref={controls} makeDefault enablePan={false} enableRotate enableZoom enableDamping dampingFactor={.075} rotateSpeed={.58} zoomSpeed={.82} minZoom={fitZoom * .85} maxZoom={Math.max(92, defaultZoom * 1.55)} minPolarAngle={MathUtils.degToRad(20)} maxPolarAngle={MathUtils.degToRad(40)} minAzimuthAngle={CAMERA_AZIMUTH - CAMERA_ROTATION_RANGE} maxAzimuthAngle={CAMERA_AZIMUTH + CAMERA_ROTATION_RANGE} target={[0, .35, 0]} onStart={() => { manualUntil.current = Number.POSITIVE_INFINITY }} onEnd={() => { manualUntil.current = performance.now() + 6000 }} />
 }
 
 function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, quality, selected, onSelect }: { state: GameState; reducedMotion: boolean; recenterSignal: number; focusedPlayerId: string; quality: 'low' | 'high'; selected?: string; onSelect: (tileId?: string) => void }) {
@@ -415,7 +426,7 @@ function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, qua
 
 export function Board3D({ state, reducedMotion, quality, recenterSignal, focusedPlayerId }: { state: GameState; reducedMotion: boolean; quality: 'low' | 'high'; recenterSignal: number; focusedPlayerId: string }) {
   const [selected, setSelected] = useState<string>()
-  return <><Canvas orthographic shadows={quality === 'high'} dpr={quality === 'high' ? [1, 1.5] : 1} camera={{ position: [-10.5, 12, 10.5], zoom: 60, near: .5, far: 70 }} performance={{ min: .55, debounce: 250 }} gl={{ antialias: quality === 'high', powerPreference: 'high-performance', alpha: false }}>
+  return <><Canvas orthographic shadows={quality === 'high'} dpr={quality === 'high' ? [1, 1.5] : 1} camera={{ position: CAMERA_OFFSET, zoom: 60, near: .5, far: 70 }} performance={{ min: .55, debounce: 250 }} gl={{ antialias: quality === 'high', powerPreference: 'high-performance', alpha: false }}>
     <color attach="background" args={['#b8d6d2']} />
     <Suspense fallback={null}><BoardScene state={state} reducedMotion={reducedMotion} recenterSignal={recenterSignal} focusedPlayerId={focusedPlayerId} quality={quality} selected={selected} onSelect={setSelected} /></Suspense>
   </Canvas><PropertyInspector state={state} tileId={selected} onSelect={setSelected} /></>
