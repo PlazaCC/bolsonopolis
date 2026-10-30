@@ -10,8 +10,8 @@ export function PropertyInspector({ state, tileId, onSelect }: { state: GameStat
   return <div className="property-inspector-shell">
     <label className="property-picker">
       <span>INSPECIONAR IMÓVEL</span>
-      <select value={tileId ?? ''} onChange={event => onSelect(event.target.value || undefined)}>
-        <option value="">Selecione no tabuleiro</option>
+      <select aria-label="Inspecionar imóvel" value={tileId ?? ''} onChange={event => onSelect(event.target.value || undefined)}>
+        <option value="">Inspecionar imóvel</option>
         {PROPERTIES.map(propertyTile => <option key={propertyTile.id} value={propertyTile.id}>{propertyTile.name}</option>)}
       </select>
     </label>

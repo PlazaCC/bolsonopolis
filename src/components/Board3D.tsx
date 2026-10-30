@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Billboard, ContactShadows, OrbitControls, RoundedBox, Text } from '@react-three/drei'
 import { Suspense, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Color, MathUtils, Quaternion, Vector3, type Group, type PerspectiveCamera } from 'three'
+import { Color, MathUtils, Quaternion, TOUCH, Vector3, type Group, type PerspectiveCamera } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { BOARD, CHARACTERS, GROUP_COLORS, MONEY, PROPERTIES } from '../game/content'
 import type { BoardTile, GameState, Player, PropertyTile } from '../types'
@@ -349,6 +349,45 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
   const controls = useRef<OrbitControlsImpl>(null)
   const { camera, size } = useThree()
   const perspective = camera as PerspectiveCamera
+  // One finger pans; pinch zoom uses OrbitControls while finger twist rotates the map.
+  useEffect(() => {
+    const element = controls.current?.domElement
+    if (!element) return
+    const pointers = new Map<number, { x: number; y: number }>()
+    let previousAngle: number | undefined
+    const angle = () => {
+      const [a, b] = [...pointers.values()]
+      return a && b ? Math.atan2(b.y - a.y, b.x - a.x) : undefined
+    }
+    const down = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      previousAngle = angle()
+    }
+    const move = (event: PointerEvent) => {
+      if (!pointers.has(event.pointerId)) return
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      const next = angle()
+      if (next !== undefined && previousAngle !== undefined && controls.current) {
+        const delta = Math.atan2(Math.sin(next - previousAngle), Math.cos(next - previousAngle))
+        controls.current.setAzimuthalAngle(controls.current.getAzimuthalAngle() - delta)
+      }
+      previousAngle = next
+    }
+    const end = (event: PointerEvent) => { pointers.delete(event.pointerId); previousAngle = angle() }
+    element.addEventListener('pointerdown', down)
+    element.addEventListener('pointermove', move)
+    element.addEventListener('pointerup', end)
+    element.addEventListener('pointercancel', end)
+    element.addEventListener('lostpointercapture', end)
+    return () => {
+      element.removeEventListener('pointerdown', down)
+      element.removeEventListener('pointermove', move)
+      element.removeEventListener('pointerup', end)
+      element.removeEventListener('pointercancel', end)
+      element.removeEventListener('lostpointercapture', end)
+    }
+  }, [])
   const manualUntil = useRef(0)
   const initialised = useRef(false)
   const framedFocus = useRef(new Vector3())
@@ -388,7 +427,7 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
     camera.position.copy(controls.current.target).add(offset.setLength(distance))
     controls.current.update()
   })
-  return <OrbitControls ref={controls} makeDefault screenSpacePanning={false} enablePan enableRotate enableZoom enableDamping dampingFactor={.075} rotateSpeed={.58} zoomSpeed={.82} panSpeed={.62} minDistance={Math.max(4, defaultDistance * .45)} maxDistance={120} minPolarAngle={.52} maxPolarAngle={1.5} target={[0, .35, 0]} onStart={() => { manualUntil.current = Number.POSITIVE_INFINITY }} onEnd={() => { manualUntil.current = performance.now() + 6000 }} />
+  return <OrbitControls ref={controls} makeDefault touches={{ ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN }} screenSpacePanning={false} enablePan enableRotate enableZoom enableDamping dampingFactor={.075} rotateSpeed={.58} zoomSpeed={.82} panSpeed={.62} minDistance={Math.max(4, defaultDistance * .45)} maxDistance={120} minPolarAngle={.52} maxPolarAngle={1.5} target={[0, .35, 0]} onStart={() => { manualUntil.current = Number.POSITIVE_INFINITY }} onEnd={() => { manualUntil.current = Number.POSITIVE_INFINITY }} />
 }
 
 function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, quality, selected, onSelect }: { state: GameState; reducedMotion: boolean; recenterSignal: number; focusedPlayerId: string; quality: 'low' | 'high'; selected?: string; onSelect: (tileId?: string) => void }) {

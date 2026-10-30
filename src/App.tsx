@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Beer, BookOpen, Building2, Copy, Crown, Dice5, Focus, Gavel, Gem, Handshake, HelpCircle, Landmark, RotateCcw, Settings, ShieldCheck, TrendingUp, Users, Volume2, VolumeX, Wifi, WifiOff, X } from 'lucide-react'
+import { AlertTriangle, Beer, BookOpen, Building2, Copy, Crown, Dice5, Focus, Gavel, Gem, Handshake, HelpCircle, Landmark, Menu, RotateCcw, Settings, ShieldCheck, TrendingUp, Users, Volume2, VolumeX, Wifi, WifiOff, X } from 'lucide-react'
 import type { DataConnection } from 'peerjs'
 import { BOARD, CHARACTERS, EVENTS, GROUP_COLORS, MONEY, PROPERTIES, REFERENCES } from './game/content'
 import { createGame, getBotIntent, hydrateGameState, netWorth, ownedProperties, ownsGroup, propertyRent, reduceGame } from './game/engine'
@@ -237,20 +237,40 @@ function GameScreen(props: { game: GameState; playerId: string; role: Role; conn
   const { game, playerId, role, connection, error, onIntent } = props
   const active = game.players[game.turnIndex]; const me = game.players.find(player => player.id === playerId)!; const myTurn = active?.id === playerId
   const [managementOpen, setManagementOpen] = useState(false); const [tradeOpen, setTradeOpen] = useState(false)
+  const hudRoot = useRef<HTMLElement>(null)
+  const actionPanel = useRef<HTMLElement>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [sheet, setSheet] = useState({ phase: game.phase, collapsed: false })
+  const sheetCollapsed = sheet.phase === game.phase && sheet.collapsed
+  useEffect(() => {
+    const panel = actionPanel.current
+    const root = hudRoot.current
+    if (!panel || !root) return
+    const observer = new ResizeObserver(() => root.style.setProperty('--action-height', `${panel.getBoundingClientRect().height}px`))
+    observer.observe(panel)
+    return () => observer.disconnect()
+  }, [])
   const [tipsy, setTipsy] = useState(false)
   const [rosterOpen, setRosterOpen] = useState(false)
   const [journalOpen, setJournalOpen] = useState(false)
   const [cameraSelection, setCameraSelection] = useState({ playerId: active?.id ?? playerId, turnIndex: game.turnIndex })
   const focusedPlayerId = cameraSelection.turnIndex === game.turnIndex ? cameraSelection.playerId : active?.id ?? playerId
   if (game.phase === 'finished') return <FinalScreen game={game} playerId={playerId} role={role} onIntent={onIntent} onLeave={props.onLeave} />
-  return <section className={`game-screen estate-game game-hud phase-${game.phase}`}><header className="game-topbar"><Brand /><div className="round-counter"><small>RODADA</small><strong>{game.round}{game.mode === 'timed' && <><i>/</i>{game.turnLimit}</>}</strong></div><div className={`turn-banner ${myTurn ? 'mine' : ''}`}><Portrait id={active.characterId} size="small" /><div><small>{phaseLabel(game.phase)}</small><b>{myTurn ? 'SUA VEZ' : active.nickname}</b></div></div><button className="hud-toggle" aria-expanded={rosterOpen} onClick={() => setRosterOpen(!rosterOpen)}><Users /> JOGADORES</button><button className="hud-toggle" aria-expanded={journalOpen} onClick={() => setJournalOpen(!journalOpen)}><BookOpen /> HISTÓRICO</button><div className={`connection-pill ${connection}`}>{connection === 'connected' ? <Wifi /> : <WifiOff />}{role === 'local' ? 'LOCAL' : connection.toUpperCase()}</div><button className="icon-button" onClick={props.onReferences} aria-label="Abrir referências" title="Referências"><BookOpen /></button><button className="icon-button" onClick={props.onRules} aria-label="Abrir regras" title="Como jogar"><HelpCircle /></button><button className="icon-button" onClick={props.onSettings} aria-label="Abrir configurações" title="Configurações"><Settings /></button></header>
-    <div className={`hud-roster ${rosterOpen ? "expanded" : ""}`}><PlayerLedger game={game} playerId={playerId} focusedPlayerId={focusedPlayerId} onFocus={focusedId => setCameraSelection({ playerId: focusedId, turnIndex: game.turnIndex })} /></div>
-    <div className="board-wrap"><Suspense fallback={<div className="board-loading"><div className="spinner" />Montando a cidade…</div>}><Board3D state={game} reducedMotion={props.reducedMotion} quality={props.quality} renderScale={props.renderScale} tipsy={tipsy} recenterSignal={props.recenterSignal} focusedPlayerId={focusedPlayerId} /></Suspense><button type="button" className={`beer-button ${tipsy ? "active" : ""}`} aria-pressed={tipsy} onClick={() => setTipsy(!tipsy)}><Beer /><span>{tipsy ? "FICAR SÓBRIO" : "TOMAR UMA CERVEJINHA"}</span></button><div className="camera-help">ARRASTE PARA GIRAR · BOTÃO DIREITO PARA DESLIZAR · SCROLL PARA APROXIMAR</div><button type="button" className="recenter" onClick={() => { setCameraSelection({ playerId, turnIndex: game.turnIndex }); props.onRecenter() }}><Focus /> MEU PERSONAGEM</button></div>
-    <div className="resource-strip hud-resources"><div><span>R$</span><b>{me.cash} mil</b><small>CAIXA</small></div><div><Landmark /><b>{netWorth(game, me)}</b><small>PATRIMÔNIO LÍQ.</small></div></div><aside className="action-panel">
+  return <section ref={hudRoot} className={`game-screen estate-game game-hud phase-${game.phase}`}><header className="game-topbar"><Brand /><div className="round-counter"><small>RODADA</small><strong>{game.round}{game.mode === 'timed' && <><i>/</i>{game.turnLimit}</>}</strong></div><div className={`turn-banner ${myTurn ? 'mine' : ''}`}><Portrait id={active.characterId} size="small" /><div><small>{phaseLabel(game.phase)}</small><b>{myTurn ? 'SUA VEZ' : active.nickname}</b></div></div><div className="desktop-hud-controls"><button className="hud-toggle" aria-expanded={rosterOpen} onClick={() => setRosterOpen(!rosterOpen)}><Users /> JOGADORES</button><button className="hud-toggle" aria-expanded={journalOpen} onClick={() => setJournalOpen(!journalOpen)}><BookOpen /> HISTÓRICO</button><div className={`connection-pill ${connection}`}>{connection === 'connected' ? <Wifi /> : <WifiOff />}{role === 'local' ? 'LOCAL' : connection.toUpperCase()}</div><button className="icon-button" onClick={props.onReferences} aria-label="Abrir referências" title="Referências"><BookOpen /></button><button className="icon-button" onClick={props.onRules} aria-label="Abrir regras" title="Como jogar"><HelpCircle /></button><button className="icon-button" onClick={props.onSettings} aria-label="Abrir configurações" title="Configurações"><Settings /></button></div><button className="mobile-menu-button" aria-label="Menu da partida" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button></header>
+    {menuOpen && <nav className="mobile-hud-menu" aria-label="Menu da partida">
+      <button onClick={() => { setRosterOpen(!rosterOpen); setJournalOpen(false); setMenuOpen(false) }}><Users /> Jogadores</button>
+      <button onClick={() => { setJournalOpen(!journalOpen); setRosterOpen(false); setMenuOpen(false) }}><BookOpen /> Histórico</button>
+      <button onClick={() => { props.onRules(); setMenuOpen(false) }}><HelpCircle /> Como jogar</button>
+      <button onClick={() => { props.onReferences(); setMenuOpen(false) }}><BookOpen /> Referências</button>
+      <button onClick={() => { props.onSettings(); setMenuOpen(false) }}><Settings /> Configurações</button>
+    </nav>}
+    <div className={`hud-roster ${rosterOpen ? "expanded" : ""}`}><PlayerLedger game={game} playerId={playerId} focusedPlayerId={focusedPlayerId} onFocus={focusedId => { setCameraSelection({ playerId: focusedId, turnIndex: game.turnIndex }); setRosterOpen(false) }} /></div>
+    <div className="board-wrap"><Suspense fallback={<div className="board-loading"><div className="spinner" />Montando a cidade…</div>}><Board3D state={game} reducedMotion={props.reducedMotion} quality={props.quality} renderScale={props.renderScale} tipsy={tipsy} recenterSignal={props.recenterSignal} focusedPlayerId={focusedPlayerId} /></Suspense><div className="camera-tools"><button type="button" aria-label={tipsy ? "Ficar sóbrio" : "Tomar uma cervejinha"} title={tipsy ? "Ficar sóbrio" : "Tomar uma cervejinha"} className={`beer-button ${tipsy ? "active" : ""}`} aria-pressed={tipsy} onClick={() => setTipsy(!tipsy)}><Beer /><span>{tipsy ? "FICAR SÓBRIO" : "TOMAR UMA CERVEJINHA"}</span></button><button type="button" className="recenter" aria-label="Centralizar no meu personagem" title="Centralizar no meu personagem" onClick={() => { setCameraSelection({ playerId, turnIndex: game.turnIndex }); props.onRecenter() }}><Focus /><span>MEU PERSONAGEM</span></button></div><div className="camera-help"><span className="desktop-gesture-help">ARRASTE PARA GIRAR · BOTÃO DIREITO PARA DESLIZAR · SCROLL PARA APROXIMAR</span><span className="touch-gesture-help">1 DEDO MOVE · PINÇA APROXIMA · GIRE 2 DEDOS PARA GIRAR</span></div></div>
+    <div className="resource-strip hud-resources"><div><span>R$</span><b>{me.cash} mil</b><small>CAIXA</small></div><div><Landmark /><b>{netWorth(game, me)}</b><small>PATRIMÔNIO LÍQ.</small></div></div><aside ref={actionPanel} className={`action-panel ${sheetCollapsed ? 'action-collapsed' : ''}`} aria-label="Ações do turno"><button className="action-sheet-toggle" aria-expanded={!sheetCollapsed} onClick={() => setSheet({ phase: game.phase, collapsed: !sheetCollapsed })}>{sheetCollapsed ? 'MOSTRAR AÇÕES' : 'RECOLHER AÇÕES'}<span aria-hidden="true">{sheetCollapsed ? '＋' : '−'}</span></button><div className="action-sheet-body">
       {game.lastRoll && <div className={`dice-status ${game.lastRoll[0] === game.lastRoll[1] ? 'doubles' : ''}`}><span>DADOS OFICIAIS</span><b>{game.lastRoll[0]}</b><i>+</i><b>{game.lastRoll[1]}</b><strong>= {game.lastRoll[0] + game.lastRoll[1]}</strong>{game.lastRoll[0] === game.lastRoll[1] && <em>DUPLA · JOGUE NOVAMENTE</em>}</div>}
       <ActionContent game={game} me={me} myTurn={myTurn} role={role} onIntent={onIntent} onManage={() => setManagementOpen(true)} onTrade={() => setTradeOpen(true)} />
       {error && <div className="error-banner compact">{error}</div>}
-    </aside>
+    </div></aside>
     {journalOpen && <div className="hud-journal"><LogFeed game={game} /></div>}
     {managementOpen && <ManagementModal game={game} player={me} enabled={myTurn && game.phase === 'manage'} onIntent={onIntent} onClose={() => setManagementOpen(false)} />}
     {tradeOpen && <TradeModal game={game} player={me} enabled={myTurn && game.phase === 'manage'} onIntent={onIntent} onClose={() => setTradeOpen(false)} />}
