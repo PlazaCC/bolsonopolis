@@ -1,12 +1,15 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Billboard, ContactShadows, OrbitControls, RoundedBox, Text } from '@react-three/drei'
-import { Suspense, memo, useEffect, useMemo, useRef, useState } from 'react'
-import { Color, MathUtils, Quaternion, Vector3, type Group, type OrthographicCamera } from 'three'
+import { Suspense, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Color, MathUtils, Quaternion, Vector3, type Group, type PerspectiveCamera } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { BOARD, CHARACTERS, GROUP_COLORS, MONEY, PROPERTIES } from '../game/content'
 import type { BoardTile, GameState, Player, PropertyTile } from '../types'
 import { CharacterModel, type CharacterAnimation } from './CharacterModel'
 import { CENTER_ZONES, CITY_BOUNDS, CITY_PATH, CORNER_TILE_SIZE, SURFACE_LEVELS, TREES, cityPosition, isCompactLot, isShoulderLot, lotPosition, lotRotation, pawnSlot, tileRotation } from './cityLayout'
+import { RioBarEnvironment } from './RioBarEnvironment'
+import { TipsyEffect } from './TipsyEffect'
+import { PatioTable } from './PatioTable'
 import { PropertyInspector } from './PropertyInspector'
 
 const CORNERS = new Set([0, 10, 20, 30])
@@ -330,6 +333,10 @@ function MovingPawn({ player, occupantIndex, occupantCount, active, focused, red
       if (!waypoints.current.length) { speed.current = 0; setMoving(false) }
     }
   })
+  // Animated pawns keep their contact rings, rather than leaving a baked silhouette behind.
+  useLayoutEffect(() => {
+    group.current?.traverse(object => { object.castShadow = false })
+  }, [])
   const animation: CharacterAnimation = moving ? 'walk' : active && (phase === 'property' || phase === 'event') ? 'celebrate' : player.jailTurns || player.bankrupt ? 'frustrated' : phase === 'trade' ? 'negotiate' : 'idle'
   return <group ref={group}>
     <mesh position-y={.025} rotation-x={-Math.PI / 2} renderOrder={5}><ringGeometry args={[.3, .36, 24]} /><meshBasicMaterial color={CHARACTERS[player.characterId].accent} transparent opacity={active ? .95 : .5} depthWrite={false} polygonOffset polygonOffsetFactor={-2} /></mesh>
@@ -341,32 +348,33 @@ function MovingPawn({ player, occupantIndex, occupantCount, active, focused, red
 function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion }: { recenterSignal: number; focusedPlayerId: string; cameraFocus: { current: Vector3 }; reducedMotion: boolean }) {
   const controls = useRef<OrbitControlsImpl>(null)
   const { camera, size } = useThree()
-  const ortho = camera as OrthographicCamera
+  const perspective = camera as PerspectiveCamera
   const manualUntil = useRef(0)
   const initialised = useRef(false)
   const framedFocus = useRef(new Vector3())
   const isCompactViewport = size.height < 500
-  // Isometric projection widens the square, so fitting uses a small safe margin.
+  // Keep the familiar framing while giving nearby buildings natural perspective depth.
   const fitZoom = Math.max(14, Math.min(40, size.width / (CITY_BOUNDS.width + 8), size.height / (CITY_BOUNDS.depth + 4.5)))
   const defaultZoom = Math.min(78, Math.max(isCompactViewport ? 32 : 56, fitZoom * 2.08))
+  const defaultDistance = Math.max(12, size.height * 1.3 / (2 * defaultZoom * Math.tan(MathUtils.degToRad(perspective.fov / 2))))
+  const cameraOffset = useRef(new Vector3())
   useEffect(() => {
     if (!initialised.current) {
       const focus = cameraFocus.current
-      ortho.position.copy(focus).add(new Vector3(-10.5, 12, 10.5)); ortho.zoom = defaultZoom; ortho.updateProjectionMatrix()
+      perspective.position.copy(focus).add(new Vector3(-10.5, 12, 10.5).setLength(defaultDistance))
       controls.current?.target.copy(focus); controls.current?.update(); initialised.current = true
     } else if (manualUntil.current === 0) {
-      ortho.zoom = defaultZoom; ortho.updateProjectionMatrix()
+      perspective.position.sub(controls.current?.target ?? cameraFocus.current).setLength(defaultDistance).add(controls.current?.target ?? cameraFocus.current)
     }
-  }, [ortho, cameraFocus, defaultZoom])
+  }, [perspective, cameraFocus, defaultDistance])
   useEffect(() => {
     if (!controls.current || !initialised.current) return
     manualUntil.current = 0
     const focus = cameraFocus.current.clone().setY(.72)
     controls.current.target.copy(focus)
-    ortho.position.copy(focus).add(new Vector3(-10.5, 12, 10.5))
-    ortho.zoom = defaultZoom
-    ortho.updateProjectionMatrix(); controls.current.update()
-  }, [recenterSignal, focusedPlayerId, cameraFocus, defaultZoom, ortho])
+    perspective.position.copy(focus).add(new Vector3(-10.5, 12, 10.5).setLength(defaultDistance))
+    controls.current.update()
+  }, [recenterSignal, focusedPlayerId, cameraFocus, defaultDistance, perspective])
   useFrame((_, delta) => {
     if (!controls.current || performance.now() < manualUntil.current) return
     const desired = framedFocus.current.copy(cameraFocus.current).setY(.72)
@@ -375,10 +383,12 @@ function CameraRig({ recenterSignal, focusedPlayerId, cameraFocus, reducedMotion
     controls.current.target.lerp(desired, smoothing)
     // Move camera and target by the same delta to preserve orbit and distance.
     camera.position.add(controls.current.target.clone().sub(previous))
-    ortho.zoom = reducedMotion ? defaultZoom : MathUtils.damp(ortho.zoom, defaultZoom, 3.2, delta)
-    ortho.updateProjectionMatrix(); controls.current.update()
+    const offset = cameraOffset.current.copy(camera.position).sub(controls.current.target)
+    const distance = reducedMotion ? defaultDistance : MathUtils.damp(offset.length(), defaultDistance, 3.2, delta)
+    camera.position.copy(controls.current.target).add(offset.setLength(distance))
+    controls.current.update()
   })
-  return <OrbitControls ref={controls} makeDefault enablePan enableRotate enableZoom enableDamping dampingFactor={.075} rotateSpeed={.58} zoomSpeed={.82} panSpeed={.62} minZoom={fitZoom * .85} maxZoom={Math.max(92, defaultZoom * 1.55)} minPolarAngle={.52} maxPolarAngle={1.2} target={[0, .35, 0]} onStart={() => { manualUntil.current = Number.POSITIVE_INFINITY }} onEnd={() => { manualUntil.current = performance.now() + 6000 }} />
+  return <OrbitControls ref={controls} makeDefault screenSpacePanning={false} enablePan enableRotate enableZoom enableDamping dampingFactor={.075} rotateSpeed={.58} zoomSpeed={.82} panSpeed={.62} minDistance={Math.max(4, defaultDistance * .45)} maxDistance={120} minPolarAngle={.52} maxPolarAngle={1.5} target={[0, .35, 0]} onStart={() => { manualUntil.current = Number.POSITIVE_INFINITY }} onEnd={() => { manualUntil.current = performance.now() + 6000 }} />
 }
 
 function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, quality, selected, onSelect }: { state: GameState; reducedMotion: boolean; recenterSignal: number; focusedPlayerId: string; quality: 'low' | 'high'; selected?: string; onSelect: (tileId?: string) => void }) {
@@ -392,8 +402,11 @@ function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, qua
   useEffect(() => { cameraFocus.current.set(focusedX, .72, focusedZ) }, [focusedX, focusedZ])
   return <>
     <hemisphereLight intensity={1.55} color="#fff7df" groundColor="#526e66" />
-    <directionalLight castShadow={quality === 'high'} position={[8, 16, 10]} intensity={2.1} color="#fff2d2" shadow-mapSize={[quality === 'high' ? 2048 : 512, quality === 'high' ? 2048 : 512]} shadow-camera-left={-11} shadow-camera-right={11} shadow-camera-top={11} shadow-camera-bottom={-11} shadow-camera-near={4} shadow-camera-far={36} shadow-bias={-.00012} shadow-normalBias={.035} />
-    <mesh position={[0, -.72, 0]} rotation-x={-Math.PI / 2} receiveShadow><planeGeometry args={[80, 80]} /><meshStandardMaterial color="#8c694d" roughness={.84} /></mesh>
+    {/* Bake the fixed light once; camera movement reuses the same soft shadow map. */}
+    <directionalLight key={quality} castShadow position={[18, 32, 18]} intensity={2.1} color="#fff2d2" shadow-autoUpdate={false} shadow-needsUpdate={true} shadow-mapSize={[quality === 'high' ? 2048 : 1024, quality === 'high' ? 2048 : 1024]} shadow-camera-left={-36} shadow-camera-right={36} shadow-camera-top={36} shadow-camera-bottom={-36} shadow-camera-near={1} shadow-camera-far={110} shadow-radius={5} shadow-blurSamples={12} shadow-bias={-.00005} shadow-normalBias={.05} />
+    <RioBarEnvironment />
+    <PatioTable />
+
     <group onPointerMissed={() => onSelect(undefined)}>
       <PhysicalBoard />
       <BoardTiles state={state} selected={selected} onSelect={onSelect} />
@@ -408,15 +421,17 @@ function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, qua
         return <MovingPawn key={player.id} player={player} occupantIndex={Math.max(0, occupants.findIndex(candidate => candidate.id === player.id))} occupantCount={Math.max(1, occupants.length)} active={active?.id === player.id} focused={focusedPlayer?.id === player.id} cameraFocus={cameraFocus} reducedMotion={reducedMotion} phase={state.phase} showLabel={quality === 'high' || active?.id === player.id || focusedPlayer?.id === player.id} />
       })}
     </group>
-    <ContactShadows position={[0, -.685, 0]} opacity={quality === 'high' ? .34 : .2} scale={28} blur={2.6} far={12} resolution={quality === 'high' ? 512 : 256} frames={1} />
+    <ContactShadows position={[0, -.685, 0]} opacity={quality === 'high' ? .34 : .2} scale={30} blur={1.8} far={12} resolution={quality === 'high' ? 512 : 256} frames={1} />
     <CameraRig recenterSignal={recenterSignal} focusedPlayerId={focusedPlayerId} cameraFocus={cameraFocus} reducedMotion={reducedMotion} />
   </>
 }
 
-export function Board3D({ state, reducedMotion, quality, recenterSignal, focusedPlayerId }: { state: GameState; reducedMotion: boolean; quality: 'low' | 'high'; recenterSignal: number; focusedPlayerId: string }) {
+export function Board3D({ state, reducedMotion, quality, renderScale, tipsy, recenterSignal, focusedPlayerId }: { state: GameState; reducedMotion: boolean; quality: 'low' | 'high'; renderScale: number; tipsy: boolean; recenterSignal: number; focusedPlayerId: string }) {
   const [selected, setSelected] = useState<string>()
-  return <><Canvas orthographic shadows={quality === 'high'} dpr={quality === 'high' ? [1, 1.5] : 1} camera={{ position: [-10.5, 12, 10.5], zoom: 60, near: .5, far: 70 }} performance={{ min: .55, debounce: 250 }} gl={{ antialias: quality === 'high', powerPreference: 'high-performance', alpha: false }}>
+  return <><Canvas shadows="variance" dpr={renderScale} camera={{ position: [-10.5, 12, 10.5], fov: 45, near: .1, far: 1000 }} performance={{ min: .55, debounce: 250 }} gl={{ antialias: quality === 'high', powerPreference: 'high-performance', alpha: false }}>
     <color attach="background" args={['#b8d6d2']} />
+    <fog attach="fog" args={['#b8d6d2', 900, 2800]} />
     <Suspense fallback={null}><BoardScene state={state} reducedMotion={reducedMotion} recenterSignal={recenterSignal} focusedPlayerId={focusedPlayerId} quality={quality} selected={selected} onSelect={setSelected} /></Suspense>
+    {tipsy && <TipsyEffect reducedMotion={reducedMotion} />}
   </Canvas><PropertyInspector state={state} tileId={selected} onSelect={setSelected} /></>
 }

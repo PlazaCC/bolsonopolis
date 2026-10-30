@@ -47,7 +47,7 @@ Bolsonópolis combines a deterministic property-game engine, a stylized Three.js
 | Property market | Purchases, auctions, balanced construction, trades, mortgages, debt resolution, and bankruptcy |
 | Improvements | Property levels `0–4` with architecture that varies by district, price, and development level |
 | Victory | Elimination or a configurable round limit resolved by net worth |
-| 3D presentation | Orthographic isometric view from the left, turn-based focus, ledger focus, local recentering, and free inspection controls |
+| 3D presentation | Perspective view from the left with board-plane panning and a modeled patio table, turn-based focus, ledger focus, local recentering, and free inspection controls |
 | Multiplayer | Host-authoritative rooms over PeerJS/WebRTC with runtime validation, checkpoints, authenticated reconnection, and pause/resume |
 | Editorial model | Critical satire backed by classified primary sources from official institutions |
 | Persistence | Local checkpoints and non-destructive migration from the legacy storage namespace |
