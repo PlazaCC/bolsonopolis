@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+echo "Running Bolsonopolis pre-push checks (types + unit tests)..."
+npm run check:push
