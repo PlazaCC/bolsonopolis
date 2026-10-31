@@ -468,7 +468,7 @@ function BoardScene({ state, reducedMotion, recenterSignal, focusedPlayerId, qua
       <DiceTray state={state} reducedMotion={reducedMotion} />
       {state.players.map(player => {
         const occupants = state.players.filter(candidate => candidate.position === player.position && !candidate.bankrupt)
-        return <MovingPawn pawnMotion={pawnMotion} key={player.id} player={player} occupantIndex={Math.max(0, occupants.findIndex(candidate => candidate.id === player.id))} occupantCount={Math.max(1, occupants.length)} active={active?.id === player.id} reducedMotion={reducedMotion} phase={state.phase} showLabel={quality === 'high' || active?.id === player.id || focusedPlayer?.id === player.id} />
+        return <MovingPawn pawnMotion={pawnMotion} key={player.id} player={player} occupantIndex={Math.max(0, occupants.findIndex(candidate => candidate.id === player.id))} occupantCount={Math.max(1, occupants.length)} active={active?.id === player.id} reducedMotion={reducedMotion} phase={state.phase} showLabel={quality === 'high' || active?.id === player.id || focusedPlayer?.id === player.id || state.players.some(other => other.id !== player.id && other.characterId === player.characterId)} />
       })}
     </group>
     <ContactShadows position={[0, -.685, 0]} opacity={quality === 'high' ? .34 : .2} scale={30} blur={1.8} far={12} resolution={quality === 'high' ? 512 : 256} frames={1} />

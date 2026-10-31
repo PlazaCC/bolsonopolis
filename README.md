@@ -16,6 +16,9 @@
   [![PeerJS](https://img.shields.io/badge/PeerJS-P2P-F16822)](https://peerjs.com/)
 </div>
 
+Online rooms support 2–8 players. Characters may be shared; each player keeps a separate nickname, balance, properties, and abilities. Local practice still uses one player and three bots.
+
+
 Bolsonópolis combines a deterministic property-game engine, a stylized Three.js board, local bot play, and host-authoritative peer-to-peer multiplayer. The player-facing experience is written in Brazilian Portuguese; source code and technical documentation are written in English.
 
 > [!IMPORTANT]

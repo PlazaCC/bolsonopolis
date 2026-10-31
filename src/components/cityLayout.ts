@@ -1,3 +1,5 @@
+import { MAX_PLAYERS } from '../game/limits'
+
 export type Point3 = readonly [number, number, number]
 
 const EDGE = 9
@@ -90,7 +92,7 @@ export function lotPosition(index: number, distance = lotDistance(index)): [numb
 }
 
 export function pawnSlot(index: number, count: number): [number, number] {
-  const safeCount = Math.max(1, Math.min(5, count))
+  const safeCount = Math.max(1, Math.min(MAX_PLAYERS, count))
   const safeIndex = Math.max(0, Math.min(safeCount - 1, index))
   const columns = Math.min(3, safeCount)
   const row = Math.floor(safeIndex / columns)

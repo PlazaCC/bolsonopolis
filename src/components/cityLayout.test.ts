@@ -34,8 +34,8 @@ describe('city layout', () => {
     expect(CENTER_ZONES.title[1]).toBeGreaterThan(SURFACE_LEVELS.centerTop)
   })
 
-  it('places up to five pawns without intersections and inside a regular tile', () => {
-    for (let count = 1; count <= 5; count += 1) {
+  it('places up to eight pawns without intersections and inside a regular tile', () => {
+    for (let count = 1; count <= 8; count += 1) {
       const slots = Array.from({ length: count }, (_, index) => pawnSlot(index, count))
       slots.forEach(([x, z]) => {
         expect(Math.abs(x) + PAWN_RADIUS).toBeLessThanOrEqual(.76)

@@ -1,3 +1,4 @@
+import { MAX_PLAYERS } from '../game/limits'
 import { BOARD, CHARACTERS, EVENTS, PROPERTIES } from '../game/content'
 import type { GameIntent, GameState, WireMessage } from '../types'
 
@@ -123,7 +124,7 @@ function isAuction(value: unknown, playerIds: Set<string>) {
   return isMoney(value.highestBid)
     && (value.highestBidderId === undefined || (isIdentifier(value.highestBidderId) && playerIds.has(value.highestBidderId)))
     && Array.isArray(value.passedPlayerIds)
-    && value.passedPlayerIds.length <= 5
+    && value.passedPlayerIds.length <= MAX_PLAYERS
     && value.passedPlayerIds.every(id => isIdentifier(id) && playerIds.has(id))
     && isIdentifier(value.initiatorId)
     && playerIds.has(value.initiatorId)
@@ -182,13 +183,12 @@ export function isGameStateSnapshot(value: unknown): value is GameState {
     || !isInteger(value.round, 1)
     || !Array.isArray(value.players)
     || value.players.length < 1
-    || value.players.length > 5
+    || value.players.length > MAX_PLAYERS
     || !value.players.every(isPlayer)) return false
 
   const players = value.players as Array<Record<string, unknown>>
   const playerIds = new Set(players.map(player => player.id as string))
-  const characterIds = new Set(players.map(player => player.characterId as string))
-  if (playerIds.size !== players.length || characterIds.size !== players.length || !isInteger(value.turnIndex, 0, players.length - 1)) return false
+  if (playerIds.size !== players.length || !isInteger(value.turnIndex, 0, players.length - 1)) return false
 
   if (!Array.isArray(value.properties)
     || value.properties.length !== PROPERTIES.length
@@ -206,7 +206,7 @@ export function isGameStateSnapshot(value: unknown): value is GameState {
   if (value.lastActionId !== undefined && !isText(value.lastActionId, 100, 1)) return false
   if (!Array.isArray(value.processedActions) || value.processedActions.length > 150 || !value.processedActions.every(action => isText(action, 100, 1))) return false
   if (!Array.isArray(value.logs) || value.logs.length > 40 || !value.logs.every(entry => isLog(entry, playerIds))) return false
-  if (!Array.isArray(value.winnerIds) || value.winnerIds.length > 5 || !value.winnerIds.every(id => isIdentifier(id) && playerIds.has(id))) return false
+  if (!Array.isArray(value.winnerIds) || value.winnerIds.length > MAX_PLAYERS || !value.winnerIds.every(id => isIdentifier(id) && playerIds.has(id))) return false
   return isInteger(value.createdAt)
 }
 

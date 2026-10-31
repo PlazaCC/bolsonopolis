@@ -1,3 +1,4 @@
+import { MAX_PLAYERS } from './limits'
 import { BOARD, EVENTS, GROUP_COLORS, PROPERTIES, CHARACTERS, MONEY } from './content'
 import type { GameIntent, GameState, Player, PropertyTile } from '../types'
 
@@ -221,13 +222,11 @@ export function reduceGame(previous: GameState, intent: GameIntent): GameState {
   if (intent.type === 'ADD_PLAYER' && state.phase === 'lobby') {
     const player = validateNewPlayer(intent.player)
     if (state.players.some(player => player.id === intent.player.id)) return previous
-    if (state.players.length >= 5) throw new Error('A sala já tem cinco investidores.')
-    if (state.players.some(existing => existing.characterId === player.characterId)) throw new Error('Esse personagem já foi escolhido.')
+    if (state.players.length >= MAX_PLAYERS) throw new Error(`A sala já tem ${MAX_PLAYERS} investidores.`)
     state.players.push(makePlayer(player)); log(state, `${player.nickname} entrou no consórcio.`)
   } else if (intent.type === 'REMOVE_PLAYER' && state.phase === 'lobby') state.players = state.players.filter(player => player.id !== intent.playerId)
   else if (intent.type === 'SET_READY' && state.phase === 'lobby' && actor) actor.ready = intent.ready
   else if (intent.type === 'SET_CHARACTER' && state.phase === 'lobby' && actor) {
-    if (state.players.some(player => player.id !== actor.id && player.characterId === intent.characterId)) throw new Error('Esse personagem já foi escolhido.')
     Object.assign(actor, makePlayer({ id: actor.id, nickname: actor.nickname, characterId: intent.characterId, isBot: actor.isBot }), { ready: actor.isBot })
   } else if (intent.type === 'SET_MODE' && state.phase === 'lobby') {
     if (state.players[0]?.id !== intent.playerId) throw new Error('Só o host escolhe a modalidade.')
